@@ -3,13 +3,13 @@ import shelve
 import uuid
 from typing import ClassVar, Self
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from planning_agent_demo.ast.callable import (
     CallableDefinition,
-    CallableInvocation,
     PlaceholderDefinition,
 )
+from planning_agent_demo.ast.expression import CallableInvocation
 from planning_agent_demo.ast.utils import PlaceholderDict
 
 
@@ -115,7 +115,7 @@ class BaseStatefulCallable(BaseCallable, abc.ABC):
     __register_callable__: ClassVar[bool] = False
 
     type_prefix: ClassVar[str]
-    instance_id: uuid.UUID
+    instance_id: uuid.UUID = Field(default_factory=uuid.uuid4)
 
     def save(self):
         # Use shelve to persist the JSON version of this model to disk
@@ -126,4 +126,5 @@ class BaseStatefulCallable(BaseCallable, abc.ABC):
     def load(cls, instance_id: uuid.UUID) -> Self:
         # Use shelve to load the JSON version of this model from disk
         with shelve.open("callable_instances") as db:
-            return cls.model_validate(db[f"{cls.type_prefix}/{instance_id}"])
+            data = db[f"{cls.type_prefix}/{instance_id}"]
+            return cls(**data)

@@ -1,22 +1,23 @@
 import decimal
 import textwrap
 from functools import cache
-from typing import Literal, Union
+from typing import Literal, Union, ClassVar
 
 from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
 
-from planning_agent_demo.ast.callable import CallableDefinition, CallableInvocation
+from planning_agent_demo.ast.callable import CallableDefinition
 from planning_agent_demo.ast.expression import (
     AssignmentStatement,
     Program,
     ReturnStatement,
     VariableExpr,
+    CallableInvocation,
 )
 from planning_agent_demo.ast.result import ResultError, ResultOk
 from planning_agent_demo.ast.utils import PlaceholderDict
 from planning_agent_demo.ast.variable import PlaceholderDefinition
-from planning_agent_demo.callables.base import BaseCallable
+from planning_agent_demo.callables.base import BaseCallable, BaseStatefulCallable
 
 # DEFAULT_MODEL = "llama3.2"
 DEFAULT_MODEL = "deepseek-r1"
@@ -171,7 +172,9 @@ def structured_llm_call[O: BaseModel](
     return result
 
 
-class SelfProgrammer(BaseCallable):
+class SelfProgrammer(BaseStatefulCallable):
+    type_prefix: ClassVar[str] = "self_programmer"
+
     name: str
     instructions: str
     callables: list[BaseCallable]
@@ -221,7 +224,7 @@ class SelfProgrammer(BaseCallable):
     def result_type(self):
         return self._outputs_definition.to_pydantic("SelfProgrammerOutputs")
 
-    def execute(self, arguments: BaseModel) -> BaseModel:
+    def _generate_plan(self, arguments: BaseModel) -> Program:
         arguments = self.inputs_type.model_validate(arguments)
 
         print("Generating program")
@@ -233,27 +236,27 @@ class SelfProgrammer(BaseCallable):
             (
                 "system",
                 textwrap.dedent("""
-            You are a helpful programmer who writes programs to solve problems for others.
-            
-            Given the requested task, write the AST for an application that will solve the specified problem.
-            
-            Your code will consist entirely of function calls and assigning the return values.
-            For example, a pretty version of a program might look like:
-            ```
-            (x <- result) = function(param1=y, param2=10)
-            ```
-            In this example, we've called `function` passing in a local variable `y` for `param1` and a literal value 10 for `param2`.
-            This function returns a single named value called `result`, which we store in a new local variable named `x`.
-            
-            At the end, you'll have the chance to specify which variables should be returned to satisfy the overall function requirements.
-            For example, if we are supposed to return something called `final_value`, you will be allowed to say:
-            ```
-            return final_value=x
-            ```
-            which means that the calling function will receive a value named `final_value` which will have whatever `x` had in our scope.
-            
-            The user will tell you what function they want you to write and what functions you'll have available to call. 
-            """).strip(),
+                        You are a helpful programmer who writes programs to solve problems for others.
+
+                        Given the requested task, write the AST for an application that will solve the specified problem.
+
+                        Your code will consist entirely of function calls and assigning the return values.
+                        For example, a pretty version of a program might look like:
+                        ```
+                        (x <- result) = function(param1=y, param2=10)
+                        ```
+                        In this example, we've called `function` passing in a local variable `y` for `param1` and a literal value 10 for `param2`.
+                        This function returns a single named value called `result`, which we store in a new local variable named `x`.
+
+                        At the end, you'll have the chance to specify which variables should be returned to satisfy the overall function requirements.
+                        For example, if we are supposed to return something called `final_value`, you will be allowed to say:
+                        ```
+                        return final_value=x
+                        ```
+                        which means that the calling function will receive a value named `final_value` which will have whatever `x` had in our scope.
+
+                        The user will tell you what function they want you to write and what functions you'll have available to call. 
+                        """).strip(),
             ),
             ("human", self.instructions),
             ("human", f"Here are the tools you have available:\n{tool_descriptions}"),
@@ -311,14 +314,14 @@ class SelfProgrammer(BaseCallable):
             (
                 "assistant",
                 textwrap.dedent(f"""
-        Now, let's define what values should be returned.
+                    Now, let's define what values should be returned.
 
-        I'm expected to return the following values: {list(self.expected_outputs)}.
+                    I'm expected to return the following values: {list(self.expected_outputs)}.
 
-        I have the following variables available: {list(available_variables)}
+                    I have the following variables available: {list(available_variables)}
 
-        I just need to assign those variables to the expected output names.
-        """).strip(),
+                    I just need to assign those variables to the expected output names.
+                    """).strip(),
             )
         )
         return_step = structured_llm_call(
@@ -331,19 +334,18 @@ class SelfProgrammer(BaseCallable):
         )
 
         print("Finalizing...")
-        program = Program(
+        return Program(
             statements=[step.to_statement() for step in formal_steps],
             return_statement=return_step.to_statement(),
         )
 
-        print(f"Program generated:\n```\n{program}\n```")
-
+    def _run_plan(self, arguments: BaseModel) -> BaseModel:
         print("Executing plan...")
         from planning_agent_demo.ast.run_state import RunState
 
         run_state = RunState(available_callables=self.callables, variables=arguments.model_dump())
 
-        program.evaluate(run_state)
+        self.program.evaluate(run_state)
         print(f"{run_state.result=}")
 
         match run_state.result:
@@ -351,3 +353,14 @@ class SelfProgrammer(BaseCallable):
                 raise RuntimeError(f"Program failed to execute successfully: {msg}")
             case ResultOk(values=data):
                 return self.result_type.model_validate(data)
+
+    def execute(self, arguments: BaseModel) -> BaseModel:
+        if not isinstance(arguments, BaseModel):
+            arguments = self.inputs_type(**arguments)
+
+        if self.program is None:
+            self.program = self._generate_plan(arguments)
+
+            print(f"Program generated:\n```\n{self.program}\n```")
+
+        return self._run_plan(arguments)

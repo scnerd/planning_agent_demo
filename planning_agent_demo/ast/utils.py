@@ -3,7 +3,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
-from planning_agent_demo.ast.callable import CallableInvocation
+from planning_agent_demo.ast.expression import CallableInvocation
 from planning_agent_demo.ast.dtype import BaseDtype
 from planning_agent_demo.ast.variable import PlaceholderDefinition
 
