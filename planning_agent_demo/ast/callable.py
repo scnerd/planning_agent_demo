@@ -1,10 +1,9 @@
-from typing import Literal, Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from planning_agent_demo.ast.base import BaseExpression
 from planning_agent_demo.ast.variable import PlaceholderDefinition
-
 
 # class ParameterDefinition(PlaceholderDefinition):
 #     pass
@@ -33,12 +32,12 @@ class CallableInvocation(BaseExpression):
     def __str__(self):
         return f"{self.name}({', '.join(f'{k}={v}' for k, v in self.arguments.items())})"
 
-    def evaluate(self, run_state: "import planning_agent_demo.ast.run_state.RunState") -> Any:
+    def evaluate(self, run_state: "planning_agent_demo.ast.run_state.RunState") -> Any:
         callable_instance = run_state.callables[self.name]
         args = {key: value.evaluate(run_state) for key, value in self.arguments.items()}
-        args = callable_instance.inputs_type.model_validate(args)
+        args = callable_instance.inputs_type(**args)
         result = callable_instance.execute(args)
         return result.model_dump()
 
 
-import planning_agent_demo.ast.run_state
+import planning_agent_demo.ast.run_state  # noqa: E402

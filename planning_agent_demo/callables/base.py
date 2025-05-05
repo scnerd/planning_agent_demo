@@ -1,21 +1,22 @@
 import abc
 import shelve
 import uuid
-from typing import ClassVar, Self, Literal
+from typing import ClassVar, Self
 
-from pydantic import BaseModel, create_model, Field
+from pydantic import BaseModel
 
-from planning_agent_demo.ast.base import BaseExpression
-from planning_agent_demo.ast.callable import CallableDefinition, CallableInvocation, PlaceholderDefinition
-from planning_agent_demo.ast.dtype import BaseDtype
-from planning_agent_demo.ast.utils import convert_placeholder_dict_to_pydantic, PlaceholderDict, \
-    convert_pydantic_to_placeholder_dict
+from planning_agent_demo.ast.callable import (
+    CallableDefinition,
+    CallableInvocation,
+    PlaceholderDefinition,
+)
+from planning_agent_demo.ast.utils import PlaceholderDict
 
 
 class BaseCallableInputs(BaseModel):
     @classmethod
     def as_parameters(cls) -> PlaceholderDict:
-        return convert_pydantic_to_placeholder_dict(cls)
+        return PlaceholderDict.from_pydantic(cls)
 
     @classmethod
     def as_allow_extra_parameters(cls) -> bool:
@@ -31,19 +32,10 @@ class BaseCallableInputs(BaseModel):
         expressions that should be evaluated at runtime to obtain a value
         """
 
-        parameter_dict = cls.as_parameters()
-        for placeholder in parameter_dict.placeholders.values():
-            placeholder.dtype = BaseDtype(root=BaseExpression)
-        if parameter_dict.extras is not None:
-            parameter_dict.extras.annotation = BaseDtype(root=BaseExpression)
-
-        SpecifiedArguments = convert_placeholder_dict_to_pydantic(parameter_dict)
-
-        class SpecifiedInvocationTemplate(CallableInvocation):
-            name: Literal[callable_name] = Field(callable_name, frozen=True)  # type: ignore
-            arguments: SpecifiedArguments = Field(..., description=cls.__doc__ or "The arguments to be passed to the callable")  # type: ignore
-
-        return SpecifiedInvocationTemplate
+        return cls.as_parameters().to_invocation_template(
+            callable_name=callable_name,
+            description=cls.__doc__ or "The arguments to be passed to the callable",
+        )
 
 
 class BaseCallableOutputs(BaseModel):

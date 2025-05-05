@@ -1,13 +1,18 @@
 import pytest
 from pydantic import ConfigDict, ValidationError
-from sqlalchemy.testing.plugin.plugin_base import provision
 
 from planning_agent_demo.ast.callable import CallableInvocation
-from planning_agent_demo.ast.common import RunState, ResultOk
-from planning_agent_demo.ast.expression import VariableExpr, Program, AssignmentStatement, \
-    ReturnStatement, LiteralExpr
+from planning_agent_demo.ast.expression import (
+    AssignmentStatement,
+    LiteralExpr,
+    Program,
+    ReturnStatement,
+    VariableExpr,
+)
+from planning_agent_demo.ast.result import ResultOk
+from planning_agent_demo.ast.run_state import RunState
 from planning_agent_demo.callables.base import BaseCallableInputs
-from planning_agent_demo.callables.summation import SummationOutputs, SummationInputs, SummationTool
+from planning_agent_demo.callables.summation import SummationInputs, SummationOutputs, SummationTool
 
 
 def test_summation_directly():
@@ -29,7 +34,7 @@ def test_summation_as_invocation():
             a=VariableExpr(name="x"),
             b=VariableExpr(name="y"),
             c=VariableExpr(name="z"),
-        )
+        ),
     )
     result = invocation.evaluate(run_state)
     assert result == dict(sum=7)
@@ -53,11 +58,13 @@ def test_summation_in_program():
                         a=VariableExpr(name="x"),
                         b=VariableExpr(name="y"),
                         c=VariableExpr(name="z"),
-                    )
-                )
+                    ),
+                ),
             )
         ],
-        return_statement=ReturnStatement(return_values=dict(final_result=VariableExpr(name="result"))),
+        return_statement=ReturnStatement(
+            return_values=dict(final_result=VariableExpr(name="result"))
+        ),
     )
     program.evaluate(run_state)
     assert run_state.result == ResultOk(values=dict(final_result=7))
@@ -80,8 +87,8 @@ def test_summation_in_two_step_program():
                     arguments=dict(
                         a=VariableExpr(name="x"),
                         b=VariableExpr(name="y"),
-                    )
-                )
+                    ),
+                ),
             ),
             AssignmentStatement(
                 assignments=dict(result="sum"),
@@ -90,11 +97,13 @@ def test_summation_in_two_step_program():
                     arguments=dict(
                         a=VariableExpr(name="intermediate_result"),
                         b=VariableExpr(name="z"),
-                    )
-                )
-            )
+                    ),
+                ),
+            ),
         ],
-        return_statement=ReturnStatement(return_values=dict(final_result=VariableExpr(name="result"))),
+        return_statement=ReturnStatement(
+            return_values=dict(final_result=VariableExpr(name="result"))
+        ),
     )
     program.evaluate(run_state)
     assert run_state.result == ResultOk(values=dict(final_result=7))
@@ -102,6 +111,7 @@ def test_summation_in_two_step_program():
 
 def test_invocation_template():
     """Ensure that invocation templates generate correctly."""
+
     class ToolWithExtras(BaseCallableInputs):
         model_config = ConfigDict(extra="allow")
 
@@ -114,29 +124,37 @@ def test_invocation_template():
     template_with_extras = ToolWithExtras.as_invocation_template("tool1")
     template_without_extras = ToolWithoutExtras.as_invocation_template("tool2")
 
-    template_with_extras.model_validate(dict(
-        arguments=dict(
-            x=VariableExpr(name="x_src"),
+    template_with_extras.model_validate(
+        dict(
+            arguments=dict(
+                x=VariableExpr(name="x_src"),
+            )
         )
-    ))
+    )
 
-    template_without_extras.model_validate(dict(
-        arguments=dict(
-            x=VariableExpr(name="x_src"),
+    template_without_extras.model_validate(
+        dict(
+            arguments=dict(
+                x=VariableExpr(name="x_src"),
+            )
         )
-    ))
+    )
 
-    template_with_extras.model_validate(dict(
-        arguments=dict(
-            x=VariableExpr(name="x_src"),
-            y=LiteralExpr(value=5),
-        )
-    ))
-
-    with pytest.raises(ValidationError):
-        template_without_extras.model_validate(dict(
+    template_with_extras.model_validate(
+        dict(
             arguments=dict(
                 x=VariableExpr(name="x_src"),
                 y=LiteralExpr(value=5),
             )
-        ))
+        )
+    )
+
+    with pytest.raises(ValidationError):
+        template_without_extras.model_validate(
+            dict(
+                arguments=dict(
+                    x=VariableExpr(name="x_src"),
+                    y=LiteralExpr(value=5),
+                )
+            )
+        )

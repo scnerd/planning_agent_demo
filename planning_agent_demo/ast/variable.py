@@ -1,12 +1,12 @@
 from typing import Any
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel
 
 from planning_agent_demo.ast.dtype import BaseDtype
 
 
 class VariableDefinition(BaseModel):
-    model_config = ConfigDict(validate_assignment=True)
+    # model_config = ConfigDict(validate_assignment=True)
 
     dtype: BaseDtype
 

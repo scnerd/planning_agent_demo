@@ -1,9 +1,12 @@
 from typing import ClassVar
 
-from pydantic import BaseModel, ConfigDict, validate_call
+from pydantic import ConfigDict, validate_call
 
-from planning_agent_demo.ast.callable import CallableInvocation, CallableDefinition
-from planning_agent_demo.callables.base import BaseCallable, BaseCallableInputs, BaseCallableOutputs, SimpleCallable
+from planning_agent_demo.callables.base import (
+    BaseCallableInputs,
+    BaseCallableOutputs,
+    SimpleCallable,
+)
 
 
 class SummationInputs(BaseCallableInputs):
@@ -28,6 +31,4 @@ class SummationTool(SimpleCallable[SummationInputs, SummationOutputs]):
 
     @validate_call
     def execute(self, arguments: SummationInputs) -> SummationOutputs:
-        return SummationOutputs(sum=sum(
-            arguments.model_dump(exclude_unset=True).values()
-        ))
+        return SummationOutputs(sum=sum(arguments.model_dump(exclude_unset=True).values()))

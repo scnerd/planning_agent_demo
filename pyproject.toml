@@ -10,6 +10,7 @@ dependencies = [
     "langchain-ollama>=0.3.2",
     "pydantic>=2",
     "pyparsing>=3.2.3",
+    "rich>=14.0.0",
 ]
 
 [project.optional-dependencies]
@@ -17,3 +18,10 @@ dev = [
     "ipython>=9.2.0",
     "pytest>=8.3.5",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.format]
+line-ending = "lf"

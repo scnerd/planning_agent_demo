@@ -6,7 +6,7 @@ from pydantic import RootModel, model_validator
 class BaseDtype(RootModel):
     root: type
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     def accept_common_strings_as_aliases(cls, v):
         if isinstance(v, str):
             v = {
